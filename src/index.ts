@@ -3,10 +3,11 @@ import compression from 'compression';
 import helmet from 'helmet';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-// import logger from './api/middlewares/logger.middleware';
-// import errorHandler from './api/middlewares/error-handler.middleware';
-// import { generateToken } from './api/utils/jwt.utils';
-// import routes from './api/routes';
+import logger from './api/middlewares/logger.middleware';
+import errorHandler from './api/middlewares/error-handler.middleware';
+import { generateTokenKey, generateTokenSecret } from './api/utils/jwt.utils';
+import routes from './api/routes';
+import chalk from 'chalk';
 
 import dotenv from 'dotenv'
 dotenv.config()
@@ -16,7 +17,8 @@ const port = +process.env.PORT || 3000;
 
 // Only generate a token for lower level environments
 if (process.env.NODE_ENV !== 'production') {
-//   console.log('JWT', generateToken());
+  console.log('JWT Key:', chalk.redBright(generateTokenKey()));
+  console.info('JWT Secret:', chalk.cyanBright(generateTokenSecret('User 1')));
 }
 
 // compresses all the responses
@@ -33,13 +35,13 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 
 // add logger middleware
-// app.use(logger);
+app.use(logger);
 
 // app.use(Auth.authorize([ALL_VALID_ACCESS_TYPES_IN_THE_APP]));
 
-// app.use('/api/', routes);
+app.use('/api/', routes);
 
-// app.use(errorHandler);
+app.use(errorHandler);
 
 app.get('/api', (req, res) => {
     res.status(202).send({
