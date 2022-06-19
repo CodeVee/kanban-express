@@ -6,19 +6,22 @@ import cors from 'cors';
 import logger from './api/middlewares/logger.middleware';
 import errorHandler from './api/middlewares/error-handler.middleware';
 import { generateTokenKey, generateTokenSecret } from './api/utils/jwt.utils';
+import db from './api/configs/mongo.db';
 import routes from './api/routes';
 import chalk from 'chalk';
 
 import dotenv from 'dotenv'
 dotenv.config()
 
+db();
+
 const app = express();
 const port = +process.env.PORT || 3000;
 
 // Only generate a token for lower level environments
 if (process.env.NODE_ENV !== 'production') {
-  console.log('JWT Key:', chalk.redBright(generateTokenKey()));
-  console.info('JWT Secret:', chalk.cyanBright(generateTokenSecret('User 1')));
+  // console.log('JWT Key:', chalk.redBright(generateTokenKey()));
+  // console.info('JWT Secret:', chalk.cyanBright(generateTokenSecret('User 1')));
 }
 
 // compresses all the responses
