@@ -2,20 +2,20 @@ import { Request, Response, NextFunction } from 'express';
 import { verify } from 'jsonwebtoken';
 import { validateTokenKey } from './../utils/jwt.utils';
 import asyncHandler from "express-async-handler"
-import { CustomError } from '../models/custom-error.model';
+import { AuthorizationError, AuthenticationError, ServerError, CustomError } from '../models/custom-error.model';
 
 /**
  * middleware to check whether user has access to a specific endpoint
  *
  * @param allowedAccessTypes list of allowed access types of a specific endpoint
  */
-const authorizeKey = (allowedAccessTypes: string[]) => async (req: Request, res: Response, next: NextFunction) => {
+const authorizeKey = (allowedAccessTypes: string[]) => asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   try {
     let jwt = req.headers.authorization;
 
     // verify request has token
     if (!jwt) {
-      return res.status(401).json({ message: 'Invalid token ' });
+      throw new AuthenticationError('Invalid token');
     }
 
     // remove Bearer if using Bearer Authorization mechanism
@@ -31,21 +31,26 @@ const authorizeKey = (allowedAccessTypes: string[]) => async (req: Request, res:
     );
 
     if (!hasAccessToEndpoint) {
-      return res.status(401).json({ message: 'No enough privileges to access endpoint' });
+      throw new AuthorizationError('No enough privileges to access endpoint');
     }
 
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      res.status(401).json({ message: 'Expired token' });
-      return;
+      throw new AuthenticationError('Expired token');
+    } 
+
+    if (error.name === 'JsonWebTokenError') {
+      throw new AuthenticationError('Invalid token');
     }
 
-    console.log(error.message)
-
-    res.status(500).json({ message: 'Failed to authenticate user' });
+    if (error instanceof CustomError) {
+      throw error;
+    }
+    
+    throw new ServerError(error.message);
   }
-};
+});
 
 const authorizeSecret = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
   let token
@@ -63,12 +68,12 @@ const authorizeSecret = asyncHandler(async (req: Request, res: Response, next: N
       console.log(decoded);
       next()
     } catch (error) {
-      throw new CustomError('Not authorized', 401)
+      throw new AuthenticationError('Not authorized')
     }
   }
 
   if (!token) {
-    throw new CustomError('Not authorized, no token', 401)
+    throw new AuthenticationError('Not authorized, no token')
   }
 })
 

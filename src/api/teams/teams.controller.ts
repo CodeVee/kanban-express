@@ -1,4 +1,6 @@
 import { Request, RequestHandler, Response } from 'express';
+import { ApiResponse } from '../models/api-response.model';
+import { NotFoundError } from '../models/custom-error.model';
 import { ITeam, IGetTeamReq, IAddTeamReq, IUpdateTeamReq, IDeleteTeamReq } from './teams.model';
 
 const TEAMS: ITeam[]  = [
@@ -13,7 +15,8 @@ const TEAMS: ITeam[]  = [
 ];
 
 export const getTeams = (req: Request, res: Response) => {
-  res.send(TEAMS);
+  const response = ApiResponse.successData(TEAMS);
+  res.send(response);
 };
 
 /**
@@ -24,7 +27,8 @@ export const getTeams = (req: Request, res: Response) => {
  */
 export const getActiveTeams: RequestHandler = (req: Request, res: Response) => {
   const activeTeams = TEAMS.filter((team) => team.isActive);
-  res.send(activeTeams);
+  const response = ApiResponse.successData(activeTeams);
+  res.send(response);
 };
 
 /**
@@ -36,7 +40,11 @@ export const getActiveTeams: RequestHandler = (req: Request, res: Response) => {
 // @ts-ignore
 export const getTeamById: RequestHandler = (req: IGetTeamReq, res: Response) => {
   const team = TEAMS.find(team => team.id === +req.params.id && team.isActive);
-  res.send(team);
+  if (!team) {
+    throw new NotFoundError('Team not found');
+  }
+  const response = ApiResponse.successData(team);
+  res.send(response);
 };
 
 /**
