@@ -1,10 +1,10 @@
-import { Request, RequestHandler, Response } from 'express';
+import { RequestHandler, Response } from 'express';
 import { ApiResponse } from '../models/api-response.model';
 import { BadRequestError, NotFoundError } from '../models/custom-error.model';
 import Task from '../entities/task.entity';
 import Subtask from '../entities/subtask.entity';
 import Column from '../entities/column.entity';
-import { IReadTask, IGetTaskReq, IGetTasksReq, IAddTaskReq, IUpdateTaskReq, IDeleteTaskReq, ISubtask, IReadColumn } from './Tasks.model';
+import { IReadTask, IGetTaskReq, IGetTasksReq, IAddTaskReq, IUpdateTaskReq, IDeleteTaskReq, IReadColumn } from './tasks.model';
 import asyncHandler from 'express-async-handler';
 
 
