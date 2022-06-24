@@ -186,7 +186,7 @@ export const updateTaskById: RequestHandler = asyncHandler(async (req: IUpdateTa
         const newSubtask = subtasks.find(c => c.id === subtask.id);
         if (newSubtask.title !== subtask.title 
             || newSubtask.isCompleted !== subtask.isCompleted) {
-            const query = Subtask.updateOne(
+            const query = subtask.updateOne(
                 { title: newSubtask.title, isCompleted: newSubtask.isCompleted}, options).exec();
             updateQueries.push(query);
         }
@@ -196,7 +196,7 @@ export const updateTaskById: RequestHandler = asyncHandler(async (req: IUpdateTa
     const deletedSubtasks = taskSubtasks.filter(c => !subtaskIds.includes(c.id));
     await Subtask.deleteMany({_id: {$in: deletedSubtasks.map(c => c._id)}}, options)
     
-    const addedSubtasks = subtasks.filter(c => !c.id).map(c => ({ title: c.title, Task: task._id}));
+    const addedSubtasks = subtasks.filter(c => !c.id).map(c => ({ title: c.title, task: task._id}));
     await Subtask.insertMany(addedSubtasks, options);
     
     
@@ -219,13 +219,16 @@ export const deleteTaskById: RequestHandler = asyncHandler(async (req: IDeleteTa
     session.startTransaction();
     const options = { session };
     const task = await Task.findById(req.params.id, null, options);
-    if (!Task) {
+    if (!task) {
         throw new BadRequestError('Task not found');
     }
-    const TaskSubtasks = await Subtask.find({Task: task._id});
 
-    await Subtask.deleteMany({_id: {$in: TaskSubtasks.map(c => c._id)}}, options);
-    await Task.remove(options);
+    await Subtask.deleteMany({task: task._id}, options);
+    await task.remove(options);
+
+    await session.commitTransaction();
+    await session.endSession();
+    
     const response = ApiResponse.successData(task.id);
     res.send(response);
 });

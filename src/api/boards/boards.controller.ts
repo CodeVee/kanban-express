@@ -102,6 +102,15 @@ export const addBoard: RequestHandler = asyncHandler(async (req: IAddBoardReq, r
         throw new BadRequestError('Name is required');  
     }
 
+    if (!columns && !Array.isArray(columns)) {
+        throw new BadRequestError('Column(s) required');  
+    }
+
+    const validColumns = columns.every(c => !!c.name);
+    if (!validColumns) {
+        throw new BadRequestError('Column Name is required'); 
+    }
+
     const boardExist = await Board.exists({ name });
     if (boardExist) {
         throw new BadRequestError('Name already used');  
@@ -111,22 +120,15 @@ export const addBoard: RequestHandler = asyncHandler(async (req: IAddBoardReq, r
     session.startTransaction();
     const options = { session };
 
-    const board = await Board.create({ name });
-    
-    let message = 'Board created';
-    if (columns && !!columns.length) {
-        const validColumns = columns.every(c => !!c.name);
+    const board = new Board({ name });
+    await board.save(options);
 
-        if (!validColumns) {
-            throw new BadRequestError('Column Name is required'); 
-        }
+    const attachedColumns = columns.map(c => ({ name: c.name, board: board._id}));
+    await Column.insertMany(attachedColumns, options);
 
-        const attachedColumns = columns.map(c => ({ name: c.name, board: board._id}));
-        await Column.insertMany(attachedColumns);
-        message += ' with Columns';
-    }
-
-    const response = ApiResponse.successDataMessage(board.id, message);
+    await session.commitTransaction();
+    await session.endSession();
+    const response = ApiResponse.successDataMessage(board.id, 'Board Created');
     res.send(response);
 });
 
@@ -144,7 +146,7 @@ export const updateBoardById: RequestHandler = asyncHandler(async (req: IUpdateB
         throw new BadRequestError('Name is required');  
     }
 
-    if (!columns) {
+    if (!columns && !Array.isArray(columns)) {
         throw new BadRequestError('Column(s) required');  
     }
 
@@ -166,31 +168,34 @@ export const updateBoardById: RequestHandler = asyncHandler(async (req: IUpdateB
         throw new BadRequestError('Board not found');
     }
 
-    if (!!columns.length) {
-        const boardColumns = await Column.find({board: board._id}, null, options);
-        const columnIds = columns.filter(c => !!c.id).map(c => (c.id));
+    const boardColumns = await Column.find({board: board._id}, null, options);
+    const columnIds = columns.filter(c => !!c.id).map(c => (c.id));
 
-        const updatedColumns = boardColumns.filter(c => columnIds.includes(c.id));
-        const updateQueries: Promise<any>[] = [];
-        updatedColumns.forEach(async column => {
-            const newColumn = columns.find(c => c.id === column.id);
-            if (newColumn.name !== column.name) {
-                const query = column.updateOne({ name: newColumn.name}, options).exec();
-                updateQueries.push(query);
-            }
-        });
-        await Promise.all(updateQueries);
+    const updatedColumns = boardColumns.filter(c => columnIds.includes(c.id));
+    const updateQueries: Promise<any>[] = [];
+    updatedColumns.forEach(async column => {
+        const newColumn = columns.find(c => c.id === column.id);
+        if (newColumn.name !== column.name) {
+            const query = column.updateOne({ name: newColumn.name}, options).exec();
+            updateQueries.push(query);
+        }
+    });
+    await Promise.all(updateQueries);
 
-        const deletedColumns = boardColumns.filter(c => !columnIds.includes(c.id));
-        await Column.deleteMany({_id: {$in: deletedColumns.map(c => c._id)}}, options)
-        
-        const addedColumns = columns.filter(c => !c.id).map(c => ({ name: c.name, board: board._id}));
-        await Column.insertMany(addedColumns, options);
-    }
+    const deletedColumns = boardColumns.filter(c => !columnIds.includes(c.id));
+    const deletedTasks = await Task.find({status: {$in: deletedColumns.map(c => c._id)}});
+
+    await Subtask.deleteMany({task: {$in: deletedTasks.map(c => c._id)}}, options);
+    await Task.deleteMany({_id: {$in: deletedTasks.map(c => c._id)}}, options);
+    await Column.deleteMany({_id: {$in: deletedColumns.map(c => c._id)}}, options)
+    
+    const addedColumns = columns.filter(c => !c.id).map(c => ({ name: c.name, board: board._id}));
+    await Column.insertMany(addedColumns, options);
+
     
     await session.commitTransaction();
     await session.endSession();
-    const response = ApiResponse.successDataMessage(board.id, 'Board updated with Columns');
+    const response = ApiResponse.successDataMessage(board.id, 'Board Updated');
     res.send(response);
 });
 
@@ -213,15 +218,14 @@ export const deleteBoardById: RequestHandler = asyncHandler(async (req: IDeleteB
     const boardColumns = await Column.find({board: board._id});
 
     const boardTasks = await Task.find({status: {$in: boardColumns.map(c => c._id)}});
-    const boardSubtasks = await Subtask.find({task: {$in: boardTasks.map(c => c._id)}});
 
-    await Subtask.deleteMany({_id: {$in: boardSubtasks.map(c => c._id)}}, options);
+    await Subtask.deleteMany({task: {$in: boardTasks.map(c => c._id)}}, options);
     await Task.deleteMany({_id: {$in: boardTasks.map(c => c._id)}}, options);
     await Column.deleteMany({_id: {$in: boardColumns.map(c => c._id)}}, options);
     await board.remove(options); 
 
     await session.commitTransaction();
     await session.endSession();
-    const response = ApiResponse.successData(board.id);
+    const response = ApiResponse.successDataMessage(board.id, 'Board Removed');
     res.send(response);
 });
