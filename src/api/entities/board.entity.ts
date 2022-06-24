@@ -11,12 +11,7 @@ const boardSchema = new Schema(
     },
   },
   {
-    timestamps: true,
-    query: {
-      byName(name) {
-        return this.where({ name: new RegExp(name, 'i') });
-      },
-    },
+    timestamps: true
   }
 );
 

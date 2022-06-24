@@ -3,7 +3,12 @@ import { ApiResponse } from '../models/api-response.model';
 import { BadRequestError, NotFoundError } from '../models/custom-error.model';
 import Board from '../entities/board.entity';
 import Column from '../entities/column.entity';
-import { IBoard, IGetBoardReq, IAddBoardReq, IUpdateBoardReq, IDeleteBoardReq, IColumn } from './boards.model';
+import Task from '../entities/task.entity';
+import Subtask from '../entities/subtask.entity';
+import { 
+    IBoard, IGetBoardReq, IAddBoardReq, IUpdateBoardReq, 
+    IDeleteBoardReq, IReadColumn, IReadTask, IBoardDto
+} from './boards.model';
 import asyncHandler from 'express-async-handler';
 
 
@@ -15,7 +20,7 @@ import asyncHandler from 'express-async-handler';
  */
 export const getBoards = asyncHandler(async (req: Request, res: Response) => {
     const boards = await Board.find();
-    const boardDtos: IBoard[] = boards.map(c => ({ id: c.id, name: c.name, columns: []}))
+    const boardDtos: IBoardDto[] = boards.map(c => ({ id: c.id, name: c.name }))
     const response = ApiResponse.successData(boardDtos);
     res.send(response);
 });
@@ -34,8 +39,53 @@ export const getBoardById: RequestHandler = asyncHandler(async (req: IGetBoardRe
     if (!board) {
         throw new NotFoundError('Board not found');
     }
-    const boardDto: IBoard =  { id: board.id, name: board.name, columns: []};
+    const boardDto: IBoardDto =  { id: board.id, name: board.name };
     const response = ApiResponse.successData(boardDto);
+    res.send(response);
+});
+
+/**
+ * Get Tasks based on id provided
+ *
+ * @param req Express Request
+ * @param res Express Response
+ */
+// @ts-ignore
+export const getBoardTasksById: RequestHandler = asyncHandler(async (req: IGetBoardReq, res: Response) => {
+
+    const dbColumns = await Column.find({ board: req.params.id });
+    
+    const columnIds = dbColumns.map(c => c.id as string);
+
+    const tasks = await Task.findColumnsFullRecord(columnIds);
+
+    const taskDtos = tasks.map(task => {
+        const { id, title, description, status, subtasks } = task;
+        const taskDto: IReadTask =  { 
+            id, title, description, 
+            status: { 
+                id: status.id, 
+                name: status.name
+            },
+            subtasks: subtasks.map(subtask => {
+                const {id, title, isCompleted } = subtask;
+                return {id, title, isCompleted };
+            })
+        };
+        return taskDto;
+    });
+
+    const columnDtos = dbColumns.map(col => {
+        const tasks = taskDtos.filter(dto => dto.status.name === col.name);
+        return { 
+            id: col.id,
+            name: col.name, 
+            tasks 
+        } as IReadColumn;
+    })
+
+    
+    const response = ApiResponse.successData(columnDtos);
     res.send(response);
 });
 
@@ -162,8 +212,16 @@ export const deleteBoardById: RequestHandler = asyncHandler(async (req: IDeleteB
     }
     const boardColumns = await Column.find({board: board._id});
 
+    const boardTasks = await Task.find({status: {$in: boardColumns.map(c => c._id)}});
+    const boardSubtasks = await Subtask.find({task: {$in: boardTasks.map(c => c._id)}});
+
+    await Subtask.deleteMany({_id: {$in: boardSubtasks.map(c => c._id)}}, options);
+    await Task.deleteMany({_id: {$in: boardTasks.map(c => c._id)}}, options);
     await Column.deleteMany({_id: {$in: boardColumns.map(c => c._id)}}, options);
-    await board.remove(options);
+    await board.remove(options); 
+
+    await session.commitTransaction();
+    await session.endSession();
     const response = ApiResponse.successData(board.id);
     res.send(response);
 });

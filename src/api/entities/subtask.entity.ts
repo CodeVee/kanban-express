@@ -2,24 +2,30 @@ import mongoose from 'mongoose';
 
 const { Schema } = mongoose;
 
+export interface ISubtask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+}
+
 const subtaskSchema = new Schema(
   {
     title: {
       type: String,
-      required: [true, 'Please add a title value'],
+      required: true,
     },
     isCompleted: {
       type: Boolean,
       default: false,
     },
+    task: {
+      type: Schema.Types.ObjectId,
+      ref: 'Task',
+      required: true,
+    },
   },
   {
     timestamps: true,
-    query: {
-      byName(name) {
-        return this.where({ name: new RegExp(name, 'i') });
-      },
-    },
   }
 );
 

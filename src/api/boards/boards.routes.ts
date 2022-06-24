@@ -13,4 +13,7 @@ router.route('/:id')
     .patch(Controller.updateBoardById)
     .delete(Controller.deleteBoardById);
 
+router.route('/:id/tasks')
+    .get(Controller.getBoardTasksById);
+
 export default router;
